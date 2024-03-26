@@ -1,0 +1,32 @@
+name: Fetch & Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: ProtoTiles version. Empty defaults to latest
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Set the proto file we are getting
+      if: ${{ github.event.inputs.version == '' }}
+      run: echo "PROTO_DOWNLOAD_URL=https://build.protomaps.com/$(curl https://build-metadata.protomaps.dev/builds.json | jq -r '.[-1].key')" >> $GITHUB_ENV
+
+    - name: Print download url
+      run: echo $PROTO_DOWNLOAD_URL
+
+    - name: Download proto file
+      run: curl https://build.protomaps.com/20240323.pmtiles --output proto
+
+    - name: Check if proto file exists
+      run: if [ ! -f proto ]; then echo "Proto file was not downloaded" fi
+
+    - name: Setup Rclone
+      uses: AnimMouse/setup-rclone@v1
+      with:
+        rclone_config: ${{ secrets.RCLONE_CONFIG }}
+
+    - name: Upload proto file to Cloudflare
+      run: rclone copyto proto io_clunkie_map:map/proto --progress --s3-no-check-bucket --s3-chunk-size=256M
